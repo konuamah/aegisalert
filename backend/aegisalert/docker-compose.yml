@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DJANGO_SETTINGS_MODULE=aegisalert.settings
+      - DJANGO_SECRET_KEY=django-insecure-#ixq7d0frjc8yw4+&!-y2ph-u0yo1!7ts3o59u&6%&_+zh-7xz
+
+  db:
+    image: postgis/postgis:15-3.3
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=aegisalert_db
+      - POSTGRES_USER=aegisalert_user
+      - POSTGRES_PASSWORD=password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegisalert_user -d aegisalert_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  celery:
+    build: .
+    command: celery -A aegisalert worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - web
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+  celery_beat:
+    build: .
+    command: celery -A aegisalert beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - web
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+
+volumes:
+  postgis_data:

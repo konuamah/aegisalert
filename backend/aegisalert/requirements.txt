@@ -1,0 +1,15 @@
+django==4.2.7
+psycopg2-binary==2.9.9
+djangorestframework==3.14.0
+django-filter==23.3
+djangorestframework-gis==1.0
+gunicorn==21.2.0
+GDAL==3.6.2
+django-cors-headers
+pillow
+python-dotenv
+celery==5.3.4
+django-leaflet
+redis==4.0.2
+django-redis==5.2.0
+requests==2.31.0
