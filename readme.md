@@ -124,18 +124,3 @@ Contributions are welcome! If you'd like to contribute, please follow these step
 3. Commit your changes and push to the branch.
 4. Submit a pull request with a detailed description of your changes.
 
----
-
-## License
-AegisAlert is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
----
-
-## Acknowledgments
-- Thanks to the Django and Svelte communities for their excellent documentation and support.
-- Special thanks to Mapbox for providing an intuitive mapping solution.
-- Shoutout to the creators of Celery and Redis for making asynchronous task processing a breeze.
-
----
-
-Feel free to reach out if you have any questions or suggestions! Happy coding! 🚀
