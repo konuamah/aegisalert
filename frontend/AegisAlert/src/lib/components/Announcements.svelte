@@ -1,42 +1,65 @@
-<script>
+<script lang="ts">
     import { onMount, onDestroy } from 'svelte';
 
-    let announcements = []; // Store the list of announcements
-    let isLoading = true; // Track loading state
-    let error = null; // Track errors
-    let eventSource; // Store the EventSource instance
-
-    // Handle incoming SSE messages
-    function handleMessage(event) {
-        const data = JSON.parse(event.data); // Parse the SSE data
-        announcements = data; // Update the announcements array
-        isLoading = false; // Set loading to false
+    interface Announcement {
+        id: string;
+        title: string;
+        message: string;
+        status: string;
+        timestamp: string;
     }
 
-    // Handle SSE errors
-    function handleError(err) {
+    let announcements: Announcement[] = [];
+    let isLoading: boolean = true;
+    let error: string | null = null;
+    let eventSource: EventSource | null = null;
+    let loadingAnnouncementId: string | null = null;
+
+    function handleMessage(event: MessageEvent) {
+        try {
+            const data: Announcement[] = JSON.parse(event.data);
+            announcements = data;
+            isLoading = false;
+        } catch (err) {
+            console.error('Failed to parse SSE data:', err);
+            error = 'Failed to process announcements.';
+            isLoading = false;
+        }
+    }
+
+    function handleError(err: Event) {
         console.error('SSE error:', err);
         error = 'Failed to connect to live updates.';
         isLoading = false;
     }
 
-    // Connect to the SSE endpoint when the component mounts
     onMount(() => {
         eventSource = new EventSource('/sse/announcements/');
-        eventSource.onmessage = handleMessage; // Listen for messages
-        eventSource.onerror = handleError; // Listen for errors
+        eventSource.onmessage = handleMessage;
+        eventSource.onerror = handleError;
+        eventSource.onopen = () => {
+            console.log('SSE connection established.');
+            error = null;
+        };
     });
 
-    // Close the SSE connection when the component is destroyed
     onDestroy(() => {
         if (eventSource) {
-            eventSource.close(); // Clean up the EventSource
+            eventSource.close();
         }
     });
 
-    // Function to handle announcement actions (e.g., view details)
-    function handleAnnouncementAction(announcementId) {
+    async function handleAnnouncementAction(announcementId: string) {
+        loadingAnnouncementId = announcementId;
+        await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate async action
         alert(`View details for Announcement ID: ${announcementId}`);
+        loadingAnnouncementId = null;
+    }
+
+    function getStatusColor(status: string): string {
+        return status === 'active' ? 'text-yellow-500' :
+               status === 'resolved' ? 'text-green-500' :
+               'text-blue-500';
     }
 </script>
 
@@ -44,50 +67,40 @@
     <h2 class="text-xl font-bold mb-4">Announcements</h2>
 
     {#if isLoading}
-        <!-- Show a loading message -->
         <div class="text-center py-4">
             <p>Loading announcements...</p>
         </div>
     {:else if error}
-        <!-- Show an error message -->
         <div class="text-center py-4 text-red-500">
             <p>{error}</p>
         </div>
     {:else}
-        <!-- Display the list of announcements -->
         <div class="space-y-4">
             {#each announcements as announcement}
                 <div class="p-4 rounded-lg bg-gray-50">
-                    <!-- Announcement Details -->
                     <div class="flex justify-between items-center">
                         <div>
                             <p class="font-medium">{announcement.title}</p>
                             <p class="text-sm text-gray-500">
                                 Status: 
-                                <span class={
-                                    announcement.status === 'active' ? 'text-yellow-500' :
-                                    announcement.status === 'resolved' ? 'text-green-500' :
-                                    'text-blue-500'
-                                }>
+                                <span class={getStatusColor(announcement.status)}>
                                     {announcement.status}
                                 </span>
                             </p>
                         </div>
                         <p class="text-sm text-gray-500">{announcement.timestamp}</p>
                     </div>
-
-                    <!-- Announcement Message -->
                     <div class="mt-2">
                         <p class="text-sm text-gray-700">{announcement.message}</p>
                     </div>
-
-                    <!-- Action Button -->
                     <div class="mt-3">
                         <button
                             on:click={() => handleAnnouncementAction(announcement.id)}
                             class="w-full px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                            disabled={loadingAnnouncementId === announcement.id}
+                            aria-label="View details for announcement"
                         >
-                            View Details
+                            {loadingAnnouncementId === announcement.id ? 'Loading...' : 'View Details'}
                         </button>
                     </div>
                 </div>

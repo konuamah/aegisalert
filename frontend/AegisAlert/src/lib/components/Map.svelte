@@ -1,161 +1,94 @@
-<script>
+<script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import mapboxgl from 'mapbox-gl';
   import 'mapbox-gl/dist/mapbox-gl.css';
+  import { fetchSafeZones } from '../utils/api'; // Fetch function for safe zones
 
-  // Set your Mapbox access token
-  mapboxgl.accessToken = 'pk.eyJ1Ijoia29maW93dXN1IiwiYSI6ImNsdzNsZjliejB2amgycXBoZ29xdW02MXMifQ.nhGy0P351t8p3GYMQxHWpg';
+  // Mapbox access token and default settings
+  mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+  export let center: [number, number] = [-0.186964, 5.603717]; // Default center (Accra, Ghana)
+  export let zoom: number = 5.5; // Default zoom level
+  export let safeZones: GeoJSON.FeatureCollection | null = null; // Safe zones GeoJSON
+  export let disaster: { location: string; polygon: string } | null = null; // Disaster details
 
-  // Props for the component
-  export let center = [-0.186964, 5.603717]; // Default center (Ghana)
-  export let zoom = 5.5; // Default zoom level
-  export let safeZones = null; // Safe zones GeoJSON data
-  export let disaster = null; // Disaster data (location and polygon)
-
-  let mapContainer; // Reference to the map container
-  let map; // Map instance
-
-  // Fetch safe zones from the backend
-  async function fetchSafeZones() {
-    try {
-      const response = await fetch('http://localhost:8000/safezones/safezones-list/');
-      if (!response.ok) {
-        throw new Error('Failed to fetch safe zones');
-      }
-      const data = await response.json();
-      return data; // This should be a GeoJSON FeatureCollection
-    } catch (error) {
-      console.error('Error fetching safe zones:', error);
-      return null;
-    }
-  }
+  let mapContainer: HTMLElement; // Map container element
+  let map: mapboxgl.Map; // Map instance
 
   onMount(async () => {
-    // Fetch safe zones from the backend
-    safeZones = await fetchSafeZones();
+    safeZones = await fetchSafeZones(); // Fetch safe zones data
 
     // Initialize the map
     map = new mapboxgl.Map({
       container: mapContainer,
-      style: 'mapbox://styles/mapbox/streets-v11',
-      center: center,
-      zoom: zoom,
-      attributionControl: false, // Disable the default attribution control
+      style: 'mapbox://styles/mapbox/streets-v11', 
+      center,
+      zoom,
+      attributionControl: false,
     });
 
-    // Add navigation controls
-    map.addControl(new mapboxgl.NavigationControl());
+    map.addControl(new mapboxgl.NavigationControl()); // Add zoom and rotation controls
 
-    // Wait for the map to load before adding layers
     map.on('load', () => {
-      // Add safe zones if provided
+      // Add safe zones to the map
       if (safeZones) {
-        map.addSource('safe-zones', {
-          type: 'geojson',
-          data: safeZones,
-        });
-
+        map.addSource('safe-zones', { type: 'geojson', data: safeZones });
         map.addLayer({
           id: 'safe-zones',
           type: 'circle',
           source: 'safe-zones',
-          paint: {
-            'circle-radius': 8,
-            'circle-color': '#00FF00', // Green color for safe zones
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#FFFFFF', // White border
-          },
+          paint: { 'circle-radius': 8, 'circle-color': '#00FF00', 'circle-stroke-width': 2, 'circle-stroke-color': '#FFFFFF' },
         });
-
         map.addLayer({
           id: 'safe-zone-labels',
           type: 'symbol',
           source: 'safe-zones',
-          layout: {
-            'text-field': ['get', 'name'], // Display the name property
-            'text-size': 12,
-            'text-offset': [0, 1.5],
-            'text-anchor': 'top',
-          },
-          paint: {
-            'text-color': '#000000', // Black text
-            'text-halo-color': '#FFFFFF', // White halo for better visibility
-            'text-halo-width': 2,
-          },
+          layout: { 'text-field': ['get', 'name'], 'text-size': 12, 'text-offset': [0, 1.5], 'text-anchor': 'top' },
+          paint: { 'text-color': '#000000', 'text-halo-color': '#FFFFFF', 'text-halo-width': 2 },
         });
       }
 
-      // Add disaster data if provided
+      // Add disaster data if available
       if (disaster) {
         const center = parseLocation(disaster.location);
         const polygonCoordinates = parsePolygon(disaster.polygon);
 
         if (center && polygonCoordinates) {
-          // Add a marker for the disaster location
-          new mapboxgl.Marker()
-            .setLngLat(center)
-            .addTo(map);
-
-          // Add the disaster polygon
+          new mapboxgl.Marker().setLngLat(center).addTo(map); // Add disaster location marker
           map.addSource('disaster-polygon', {
             type: 'geojson',
-            data: {
-              type: 'Feature',
-              geometry: {
-                type: 'Polygon',
-                coordinates: [polygonCoordinates],
-              },
-            },
+            data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [polygonCoordinates] }, properties: {} },
           });
-
           map.addLayer({
             id: 'disaster-polygon',
             type: 'fill',
             source: 'disaster-polygon',
-            layout: {},
-            paint: {
-              'fill-color': '#FF0000', // Red color for disaster polygon
-              'fill-opacity': 0.4,
-            },
+            paint: { 'fill-color': '#FF0000', 'fill-opacity': 0.4 },
           });
-
-          // Automatically pan and zoom to the disaster location
-          map.flyTo({
-            center: center,
-            zoom: 12, // Adjust the zoom level as needed
-            essential: true, // Ensures the animation is not interrupted
-          });
+          map.flyTo({ center, zoom: 12, essential: true }); // Focus on the disaster area
         }
       }
     });
   });
 
   onDestroy(() => {
-    if (map) map.remove(); // Clean up the map when the component is destroyed
+    if (map) map.remove(); // Clean up map resources
   });
 
-  // Function to extract coordinates from the location string
-  function parseLocation(location) {
-    const regex = /POINT \(([-\d.]+) ([-\d.]+)\)/;
-    const match = location.match(regex);
-    if (match) {
-      return [parseFloat(match[1]), parseFloat(match[2])];
-    }
-    return null;
+  // Parse location string into coordinates
+  function parseLocation(location: string): [number, number] | null {
+    const match = location.match(/POINT \(([-\d.]+) ([-\d.]+)\)/);
+    return match ? [parseFloat(match[1]), parseFloat(match[2])] : null;
   }
 
-  // Function to extract polygon coordinates from the polygon string
-  function parsePolygon(polygon) {
-    const regex = /POLYGON \(\(([^)]+)\)\)/;
-    const match = polygon.match(regex);
-    if (match) {
-      const coords = match[1].split(',').map(coord => {
-        const [lng, lat] = coord.trim().split(' ');
-        return [parseFloat(lng), parseFloat(lat)];
-      });
-      return coords;
-    }
-    return null;
+  // Parse polygon string into coordinate array
+  function parsePolygon(polygon: string): [number, number][] | null {
+    const match = polygon.match(/POLYGON \(\(([^)]+)\)\)/);
+    return match
+      ? match[1].split(',').map(coord => {
+          const [lng, lat] = coord.trim().split(' ');
+          return [parseFloat(lng), parseFloat(lat)];
+        })
+      : null;
   }
 </script>
 
@@ -166,4 +99,4 @@
   }
 </style>
 
-<div bind:this={mapContainer} class="map-container" />
+<div bind:this={mapContainer} class="map-container"></div>

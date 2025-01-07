@@ -1,7 +1,8 @@
 // src/routes/alerts/disaster/[id]/+page.js
 export async function load({ params, fetch }) {
     try {
-        const response = await fetch(`http://localhost:8000/disasters/disaster-detail/${params.id}/`);
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL; // Use environment variable
+        const response = await fetch(`${API_BASE_URL}/disasters/disaster-detail/${params.id}/`);
         if (!response.ok) {
             throw new Error(`Failed to fetch disaster details: ${response.statusText}`);
         }
