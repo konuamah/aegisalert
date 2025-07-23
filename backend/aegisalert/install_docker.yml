@@ -1,0 +1,46 @@
+---
+- name: Install Docker on Amazon Linux 2
+  hosts: app_servers
+  become: yes
+  tasks:
+    - name: Test yum command availability
+      shell: which yum
+      register: yum_check
+      changed_when: false
+
+    - name: Update all packages to the latest version
+      shell: yum update -y
+      register: update_result
+      changed_when: "'Nothing to do' not in update_result.stdout"
+
+    - name: Install Docker package
+      shell: yum install -y docker
+      register: docker_install
+      changed_when: "'Nothing to do' not in docker_install.stdout"
+
+    - name: Start Docker service
+      shell: systemctl start docker
+      register: start_result
+      changed_when: start_result.rc == 0
+
+    - name: Enable Docker service
+      shell: systemctl enable docker
+      register: enable_result
+      changed_when: enable_result.rc == 0
+
+    - name: Add ec2-user to docker group
+      shell: usermod -a -G docker ec2-user
+      register: usermod_result
+      changed_when: usermod_result.rc == 0
+
+    - name: Verify Docker installation
+      shell: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: Display results
+      debug:
+        msg: 
+          - "YUM path: {{ yum_check.stdout }}"
+          - "Docker version: {{ docker_version.stdout }}"
+          - "Installation completed successfully!"
